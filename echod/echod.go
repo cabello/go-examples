@@ -1,46 +1,52 @@
 package main
+
 import (
-    "net";
-    "os";
-    "fmt";
+	"fmt"
+	"net"
+	"os"
+	"strings"
 )
 
-func Err(format string, v ...) {
-    fmt.Fprintf(os.Stderr, format + "\n", v)
+const (
+	listenHost = "127.0.0.1"
+	listenPort = "1978"
+)
+
+func printErr(e error) {
+	fmt.Fprintf(os.Stderr, "An error occurred: %s\n", e.Error())
 }
 
-func Handler(conn net.Conn) {
-    defer conn.Close();
+func handler(conn net.Conn) {
+	defer conn.Close()
 
-    buffer := make([]byte, 24);
-    for {
-        l, e := conn.Read(buffer);
-        switch {
-        case e == nil:
-            conn.Write(buffer[0:l])
-        case e == os.EOF:
-            return;
-        case e != os.EAGAIN:
-            Err("Err on receiving a header (%s)", e);
-            return;
-        }
-    }
+	buffer := make([]byte, 24)
+	for {
+		bytesRead, err := conn.Read(buffer)
+		if err != nil {
+			printErr(err)
+			return
+		}
+
+		yell := strings.ToUpper(string(buffer[0:bytesRead]))
+		conn.Write([]byte(yell))
+	}
 }
 
 func main() {
-    psock, e := net.Listen("tcp", "127.0.0.1:1978");
-    if e != nil {
-        Err("an error occured(%s)", e);
-        return
-    }
+	listener, err := net.Listen("tcp", listenHost+":"+listenPort)
+	if err != nil {
+		printErr(err)
+		return
+	}
 
-    for {
-        conn, e := psock.Accept();
-        if e != nil {
-            Err("an error occured(%s)", e);
-            return
-        }
-        go Handler(conn);
-    }
+	fmt.Printf("Listening %s:%s\n", listenHost, listenPort)
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			printErr(err)
+			return
+		}
+		go handler(conn)
+	}
 }
-
